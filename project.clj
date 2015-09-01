@@ -8,4 +8,5 @@
                  [org.clojure/tools.logging "0.3.1"]
                  [org.slf4j/slf4j-api "1.7.12"]
                  [org.slf4j/slf4j-log4j12 "1.7.12"]
-                 [log4j "1.2.17"]])
+                 [log4j "1.2.17"]]
+  :global-vars {*warn-on-reflection* true})

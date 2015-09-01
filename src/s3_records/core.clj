@@ -5,8 +5,9 @@
   (:import [java.nio ByteBuffer]))
 
 (defprotocol StorableRecord
-  (get-storage-path [this])
-  (as-map [this]))
+  (get-storage-path [this]
+    "Returns the S3-compatible filepath where this
+     StorableRecord should be written."))
 
 (defn length-value ^bytes
   [^bytes b]
@@ -36,8 +37,7 @@
     :max-batch-latency (:max-batch-latency conf)
     :max-batch-size (:max-batch-size conf)
     :id (:id conf)
-    :expiration (:expiration conf)
-    }))
+    :expiration (:expiration conf)}))
 
 (def _conf_ (atom nil))
 
@@ -71,12 +71,16 @@
   [spath]
   (if-let [existing (get-in @_conf_ [:journals spath])]
     existing
-    (let [new (mk-journal @_conf_ spath)]
-      (swap! _conf_ assoc-in [:journals spath] new)
-      new)))
+    (if-let [conf @_conf_]
+      (let [new (mk-journal conf spath)]
+        (swap! _conf_ assoc-in [:journals spath] new)
+        new)
+      (log/error "Tried to initialize a new journal"
+                 "without a configuration !"))))
 
 (defn put
-  [o]
-  "Stores object o in the appropriate journal."
-  (let [j (get-journal (get-storage-path o))]
-    (.put! j (as-map o))))
+  [obj]
+  "Stores a StorableRecord obj in the appropriate journal.
+   The object will be stored as a map with nippy."
+  (when-let [j (get-journal (get-storage-path obj))]
+    (s3-journal/put! j (into {} obj))))
