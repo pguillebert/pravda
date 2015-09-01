@@ -4,10 +4,10 @@
             [clojure.tools.logging :as log])
   (:import [java.nio ByteBuffer]))
 
-(defprotocol StorableRecord
+(defprotocol StorableEvent
   (get-storage-path [this]
     "Returns the S3-compatible filepath where this
-     StorableRecord should be written."))
+     StorableEvent should be written."))
 
 (defn length-value ^bytes
   [^bytes b]
@@ -80,7 +80,7 @@
 
 (defn put
   [obj]
-  "Stores a StorableRecord obj in the appropriate journal.
+  "Stores a StorableEvent obj in the appropriate journal.
    The object will be stored as a map with nippy."
   (when-let [j (get-journal (get-storage-path obj))]
     (s3-journal/put! j (into {} obj))))
