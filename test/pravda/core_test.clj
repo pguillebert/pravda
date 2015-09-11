@@ -1,8 +1,8 @@
-(ns s3-records.core-test
+(ns pravda.core-test
   (:import [java.io DataInputStream File FileInputStream])
   (:require [clojure.test :refer :all]
-            [s3-records.core :as core]
-            [s3-records.datalog :as dlog]))
+            [pravda.core :as core]
+            [pravda.datalog :as dlog]))
 
 (deftest write-test
   (let [amap {:domain "dd" :type "ttt" :ts 687327217127

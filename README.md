@@ -1,17 +1,17 @@
-# s3-records
+# pravda
 
 A Clojure library to easily store a stream of unconstrained, unstructured events
 in Amazon S3. You provide individual events and they will get stored *en masse*
 into a meaningful directory structure of your choice on Amazon S3.
 
-An event is a Clojure record implementing the protocol `s3-records.core/StorableEvent`:
+An event is a Clojure record implementing the protocol `pravda.core/StorableEvent`:
 
     (defprotocol StorableEvent
       (get-storage-path [this]))
 
 `get-storage-path` uses data taken from the event to provide a S3-compatible filepath
 where this `StorableEvent` should be written. You'll find an example implementation
-in the namespace `s3-records.datalog`.
+in the namespace `pravda.datalog`.
 
 Your implementation defines the mandatory fields used in your `get-storage-path`.
 Events can be generated with the `map->Datalog` constructor using a clojure map
@@ -23,7 +23,7 @@ Don't forget to initialize the library with a configuration like this :
       {:s3 {:access-key "xxxxxxxxxxxxxxxxx"
             :secret-key "xxxxxxxxxxxxxxxxxxxxxxxx"
             :bucket "xxxxxxxx"}
-       :local-basedir "/tmp/s3-records"
+       :local-basedir "/tmp/pravda"
        :id "unique-id"
        :compressor :snappy
        :max-batch-latency (* 30 1000) ;; 30 secs

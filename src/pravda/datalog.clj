@@ -1,12 +1,12 @@
-(ns s3-records.datalog
-  (:require [s3-records.core :as core])
+(ns pravda.datalog
+  (:require [pravda.core :as core])
   (:import [java.text DateFormat SimpleDateFormat]
            [java.util Date]))
 
 ;; This is an example implementation of the StorableEvent protocol.
 ;; Int this example, data must provide three keys (:domain, :type, :ts)
 ;; key :ts will be parsed as a UNIX timestamp and will be used to store
-;; records one directory by day.
+;; events one directory by day.
 
 (def ^:static ^SimpleDateFormat date-format (SimpleDateFormat. "yyyy-MM-dd"))
 

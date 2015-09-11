@@ -1,6 +1,6 @@
-(defproject s3-records "0.1.0-SNAPSHOT"
-  :description "Stores streams of records in s3"
-  :url "http://github.com/pguillebert/s3-records"
+(defproject pravda "0.1.0-SNAPSHOT"
+  :description "Stores streams of events in s3"
+  :url "http://github.com/pguillebert/pravda"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.7.0"]

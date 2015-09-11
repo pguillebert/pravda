@@ -1,4 +1,4 @@
-(ns s3-records.core
+(ns pravda.core
   (:require [s3-journal :as s3j]
             [taoensso.nippy :as nippy]
             [clojure.tools.logging :as log])
@@ -55,11 +55,11 @@
    (Runtime/getRuntime)
    (proxy [Thread] []
      (run []
-       (log/info "Closing s3-records")
+       (log/info "Closing pravda")
        (try
          (close)
          (catch Exception e
-           (log/error e "failed to close s3-records")))))))
+           (log/error e "failed to close pravda")))))))
 
 (defn initialize
   [conf]
