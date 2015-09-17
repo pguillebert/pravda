@@ -10,7 +10,8 @@
         arecord (dlog/map->Datalog amap)]
     (core/initialize (load-file "./conf/conf.clj"))
     (core/put arecord)
-    (core/close)))
+    ;; (core/close-all)
+    ))
 
 (definterface RecordReadable [^bytes nextRecord []])
 

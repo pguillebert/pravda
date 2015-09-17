@@ -4,8 +4,10 @@
             [taoensso.nippy :as nippy]
             [clojure.tools.logging :as log])
   (:import [java.nio ByteBuffer]
+           [java.util.concurrent TimeUnit Executors ScheduledExecutorService]
            [java.io DataInputStream InputStream]
-           [org.apache.commons.compress.compressors.gzip GzipCompressorInputStream]))
+           [org.apache.commons.compress.compressors.gzip
+            GzipCompressorInputStream]))
 
 (defprotocol StorableEvent
   (get-storage-path [this]
@@ -43,13 +45,35 @@
     :expiration (:expiration conf)}))
 
 (def _conf_ (atom nil))
+(def _journals_ (atom nil))
+(def _timers_ (atom nil))
 
-(defn close
+(defn get-journal
+  [spath]
+  (locking _journals_
+    (if-let [existing (get @_journals_ spath)]
+      existing
+      (if-let [conf @_conf_]
+        (let [new (mk-journal conf spath)]
+          (swap! _journals_ assoc spath new)
+          new)
+        (log/error "Tried to initialize a new journal"
+                   "without a configuration !")))))
+
+(defn close-journal
+  [spath]
+  (locking _journals_
+    (if-let [existing (get @_journals_ spath)]
+      (do (.close existing)
+          (swap! _conf_ update-in [:journals] dissoc spath))
+      (log/error "Cannot close non-existing journal" spath))))
+
+(defn close-all
   []
   "Closes all open journals."
-  (doseq [[spath journal] (:journals @_conf_)]
+  (doseq [[spath journal] @_journals_]
     (log/info "Closing journal for" spath)
-    (.close journal)))
+    (close-journal spath)))
 
 (defn register-shutdown-hook!
   []
@@ -60,33 +84,59 @@
      (run []
        (log/info "Closing pravda")
        (try
-         (close)
+         (close-all)
          (catch Exception e
            (log/error e "failed to close pravda")))))))
 
+(defn now [] (System/currentTimeMillis))
+
+(def ^ScheduledExecutorService _scheduler_ (Executors/newScheduledThreadPool 1))
+
+(defn flush-journals
+  [current-timers flush-delay]
+  (log/info "Starting tidy loop")
+  (->> current-timers
+       (map (fn [[storage-path time]]
+              (if (> (now) (+ time flush-delay))
+                (do
+                  (log/info "TIDY: flushing" storage-path
+                            " because it is inactive since" time)
+                  (close-journal storage-path)
+                  ;; remove this timer from list
+                  nil)
+                ;; else keep this timer running
+                [storage-path time])))
+       (filter identity)
+       (doall)
+       (into {})))
+
+(defn start-journal-tidy!
+  [{:keys [flush-delay tidy-interval] :as conf}]
+  "Setups a thread to flush (close) journals not written for flush-delay.
+   This task runs every tidy-interval."
+  (.scheduleAtFixedRate _scheduler_ #(swap! _timers_ flush-journals flush-delay)
+                        tidy-interval
+                        tidy-interval
+                        TimeUnit/MILLISECONDS))
+
 (defn initialize
   [conf]
-  (when-not @_conf_
-    (register-shutdown-hook!)
-    (reset! _conf_ conf)))
-
-(defn get-journal
-  [spath]
-  (if-let [existing (get-in @_conf_ [:journals spath])]
-    existing
-    (if-let [conf @_conf_]
-      (let [new (mk-journal conf spath)]
-        (swap! _conf_ assoc-in [:journals spath] new)
-        new)
-      (log/error "Tried to initialize a new journal"
-                 "without a configuration !"))))
+  "This is used to provide pravda with a configuration. May
+  be used multiple times but only the first call will be honored."
+  (locking _conf_
+    (when-not @_conf_
+      (register-shutdown-hook!)
+      (start-journal-tidy! conf)
+      (reset! _conf_ conf))))
 
 (defn put
   [obj]
   "Stores a StorableEvent obj in the appropriate journal.
    The object will be stored as a map with nippy."
-  (when-let [j (get-journal (get-storage-path obj))]
-    (s3-journal/put! j (into {} obj))))
+  (when-let [storage-path (get-storage-path obj)]
+    (when-let [journal (get-journal storage-path)]
+      (swap! _timers_ assoc storage-path (now))
+      (s3-journal/put! journal (into {} obj)))))
 
 ;;; Reader
 
