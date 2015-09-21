@@ -65,7 +65,7 @@
   (locking _journals_
     (if-let [existing (get @_journals_ spath)]
       (do (.close existing)
-          (swap! _conf_ update-in [:journals] dissoc spath))
+          (swap! _journals_ dissoc spath))
       (log/error "Cannot close non-existing journal" spath))))
 
 (defn close-all
