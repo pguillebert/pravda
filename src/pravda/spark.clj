@@ -1,5 +1,5 @@
 (ns pravda.spark
-  (:require [pravda.core :as core])
+  (:require [pravda.reader :as reader])
   (:import [org.apache.spark Partition SparkContext TaskContext]))
 
 (defrecord FilePartition
@@ -20,7 +20,7 @@
               (compute [^Partition split-in ^TaskContext _]
                 (let [^FilePartition split-in split-in
                       file (.file split-in)
-                      ^java.util.Map part (core/build-partition s3 file)
+                      ^java.util.Map part (reader/build-partition s3 file)
                       java-conversions (scala.collection.JavaConversions$/MODULE$)]
                   (.iterator (.asScalaIterable java-conversions part))))
 
