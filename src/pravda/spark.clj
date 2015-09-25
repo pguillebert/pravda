@@ -13,16 +13,16 @@
   (let [sc (.sc sc)
         scala-nil scala.collection.immutable.Nil$/MODULE$
         classtag (scala.reflect.ClassTag$/MODULE$)
-        ^scala.reflect.ClassTag clojure-classtag (.apply classtag clojure.lang.APersistentMap)
+        clojure-classtag (.apply classtag clojure.lang.APersistentMap)
         ;; create a Spark RDD to source our events
         rdd (proxy [org.apache.spark.rdd.RDD] [sc scala-nil clojure-classtag]
 
               (compute [^Partition split-in ^TaskContext _]
                 (let [^FilePartition split-in split-in
                       file (.file split-in)
-                      ^java.util.Map part (reader/build-partition s3 file)
+                      ^java.util.Collection part (reader/build-partition s3 file)
                       java-conversions (scala.collection.JavaConversions$/MODULE$)]
-                  (.iterator (.asScalaIterable java-conversions part))))
+                  (.asScalaIterator java-conversions (.iterator part))))
 
               (getPartitions []
                 (->> files

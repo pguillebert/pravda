@@ -5,12 +5,12 @@
            [org.apache.commons.compress.compressors.gzip
             GzipCompressorInputStream]))
 
-(definterface ReadableEvent [nextEvent []])
+(definterface ReadableEventStream [nextEvent []])
 
-(defn make-lvis
+(defn make-pravda-input-stream
   "Builds an input stream to read event-files"
   [^InputStream is]
-  (proxy [DataInputStream ReadableEvent]
+  (proxy [DataInputStream ReadableEventStream]
       [is]
     (nextEvent [] (let [^DataInputStream this this
                          l (proxy-super readInt)
@@ -21,9 +21,10 @@
 (defn build-partition
   [s3 file-path]
   (let [content-is (:content (s3/get-object s3 (:bucket s3) file-path))
-        lvis (make-lvis (GzipCompressorInputStream. content-is true))]
-    ;; lazy seq of all records in this file-path
+        deflated-is (GzipCompressorInputStream. content-is true)
+        pravda-is (make-pravda-input-stream deflated-is)]
+    ;; lazy seq of all events in this file-path
     (take-while #(not= ::EOF %)
-                (repeatedly (fn [] (try (.nextEvent lvis)
+                (repeatedly (fn [] (try (.nextEvent pravda-is)
                                        (catch java.io.EOFException e
                                          ::EOF)))))))
