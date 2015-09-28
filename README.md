@@ -1,22 +1,44 @@
 # pravda
 
-A Clojure library to easily store a stream of unconstrained, unstructured events
-in Amazon S3. You provide individual events and they will get stored *en masse*
-into a meaningful directory structure of your choice on Amazon S3.
+A Clojure library to easily store and process a stream of unconstrained events
+using Amazon S3 and Spark. Your application generates individual events
+and pravda ensures they will get stored *en masse* into a meaningful directory
+structure of your choice on Amazon S3. These events are then available for
+processing directly into a dedicated [Spark](http://spark.apache.org) cluster.
 
-An event is a Clojure record implementing the protocol `pravda.core/StorableEvent`:
+## What is pravda
+
+* Unconstrained, Clojure-friendly event-flow data-type
+* Vertical partitioning made simple
+* Simple seqable/iterable format
+* Compressed storage
+* Unlimited storage capacity (S3)
+* Scalable computing power (Apache Spark on EC2)
+* 0% Hadoop
+
+## Anatomy of an event
+
+A pravda event is a Clojure record implementing the protocol
+`pravda.core/StorableEvent`:
 
     (defprotocol StorableEvent
       (get-storage-path [this]))
 
-`get-storage-path` uses data taken from the event to provide a S3-compatible filepath
-where this `StorableEvent` should be written. You'll find an example implementation
-in the namespace `pravda.datalog`.
+Your implementation of this protocol in a record will define what map keys
+are expected to be present in the event. Your implementation of
+`get-storage-path` uses data taken from the event map to provide pravda with
+an S3-compatible filepath where this `StorableEvent` should be written.
+But this structure is not contraining because records can hold more keys
+than the defined ones : in other words, you can (and should) add arbitrary
+additional fields in the event, they will be stored along.
 
-Your implementation defines the mandatory fields used in your `get-storage-path`.
-Events can be generated with the `map->Datalog` constructor using a clojure map
-containing these fields. You can add arbitrary additional fields in the map
-that will be stored along.
+A `StorableEvent` can easily be created with the default `map->Record`
+constructor using a clojure map as input.
+
+As a reference, you'll find an example implementation in the namespace
+`pravda.datalog`.
+
+## Writing to pravda
 
 Don't forget to initialize the library with a configuration like this :
 
@@ -25,43 +47,66 @@ Don't forget to initialize the library with a configuration like this :
             :bucket "xxxxxxxx"}
        :local-basedir "/tmp/pravda"
        :id "unique-id"
-       :compressor :snappy
+       :compressor :gzip
        :max-batch-latency (* 30 1000) ;; 30 secs
        :max-batch-size 100 ;; 100 logs
        :expiration (* 30 60 1000) ;; 30 minutes
        }
 
-All data is flushed on S3 when you call `close` in the core namespace.
+Then you can call `put` with a `StorableEvent` as many times as you wish.
+The library will take care of the vertical partitioning.
+
+The events will be secured to S3 :
+* regularly,
+* when the size is big enough,
+* when you call `close`.
+
+The S3 file will be compressed with the `:compressor` defined in the
+configuration.
 
 ## Binary storage format
 
 The events are stored in S3 in a very simple file format.
 The file is just a concatenation of entries :
 
-          Entry:
-            Size of Nippy data (int)
-            Nippy data (byte array)
+![Data format](/doc/format.png)
 
 The byte array is the nippy representation of the clojure map equivalent
-of the provided `StorableEvent`.
+of the provided `StorableEvent`. The size of this serialization is stored
+just before it as an integer (4 bytes). This is classic Type-Length-Value
+storage (except there is no type).
 
-Once the file is pushed on S3 (when the size is big enough, or when closing),
-it'll be compressed with the `:compressor` defined in the configuration.
+This format is compressed as a stream, current implementation focuses on
+GZIP but others are possible.
+
+## Reading data with Spark
+
+Once stored into S3, the seqable property of pravda format allows the
+creation of a Spark RDD. Different pravda files are mapped to the different
+RDD partitions : for example if you open 7 days of data with the RDD, it'll
+provide a RDD with 7 partitions. In each partition, the reader generates a
+lazy-seq that is converted into a Scala iterable for Spark.
+
+I chose Flambo to process the events with a Clojure-friendly DSLs.
+
+You'll find an example query in the test directory.
 
 ## TODO
 
-* Implement the reader part for various readers (cascading, spark)
-* ensure there is no race conditions in mutable stuff
-* auto flush events to S3 in a configurable way
+* how to write output data back into Spark
 
 ## Acknoledgements
 
-This library is a thin wrapper over
+The writer part of this library is a thin wrapper over
 [s3-journal](https://github.com/Factual/s3-journal)
 by Zach Tellman (at Factual)
 
 Also heavily using [Nippy](https://github.com/ptaoussanis/nippy)
 by Peter Taoussanis.
+
+Vertical partitioning is a term tossed by Nathan Marz in his
+library called [Pail](https://github.com/nathanmarz/dfs-datastores)
+that heavily inspired my design.
 
 ## License
 
