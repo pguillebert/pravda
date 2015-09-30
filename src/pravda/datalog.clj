@@ -1,5 +1,5 @@
 (ns pravda.datalog
-  (:require [pravda.core :as core])
+  (:require [pravda.writer :as writer])
   (:import [java.text DateFormat SimpleDateFormat]
            [java.util Date]))
 
@@ -11,7 +11,7 @@
 (def ^:static ^SimpleDateFormat date-format (SimpleDateFormat. "yyyy-MM-dd"))
 
 (defrecord Datalog [domain type ^long ts]
-  core/StorableEvent
+  writer/StorableEvent
   (get-storage-path [this]
     (let [d (java.util.Date. ts)
           strdate (.format date-format d)]

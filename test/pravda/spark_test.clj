@@ -1,9 +1,11 @@
 (ns pravda.spark-test
   (:require [pravda.spark :as spark]
+            [pravda.datalog :as dlog]
             [flambo.conf :as conf]
             [flambo.api :as f]))
 
-(def s3 (:s3 (load-file "./conf/conf.clj")))
+(def conf (load-file "./conf/conf.clj"))
+(def s3 (:s3 conf))
 
 (def c (-> (conf/spark-conf)
            (conf/master "local")
@@ -49,4 +51,10 @@
                    (and (> cnt min-threshold)
                         (> delta min-period))))
 
-       (f/take 10)))
+       (f/map (f/fn [e]
+                (assoc e :domain "processed"
+                       :type "pshb-feeds"
+                       :ts (System/currentTimeMillis))))
+
+       ;; Store as using a datalog structure
+       (spark/store-rdd conf "testoo" dlog/map->Datalog)))

@@ -1,5 +1,8 @@
 (ns pravda.spark
-  (:require [pravda.reader :as reader])
+  (:require [pravda.reader :as reader]
+            [pravda.writer :as writer]
+            [flambo.api :as f]
+            [flambo.function :as func])
   (:import [org.apache.spark Partition SparkContext TaskContext]))
 
 (defrecord FilePartition
@@ -30,3 +33,24 @@
                      (into-array))))]
     ;; convert to a JavaRDD
     (org.apache.spark.api.java.JavaRDD. rdd clojure-classtag)))
+
+(defn store-rdd
+  [^org.apache.spark.api.java.JavaRDD rdd conf identifier constructor]
+  (-> rdd
+      (f/map-partitions-with-index
+       (f/fn [idx iterator]
+         ;; initialize a pravda writer
+         (writer/initialize (assoc conf :id (str identifier idx)) )
+
+         (clojure.tools.logging/warn "Starting store of partition" idx)
+         ;; iterate all the rdd and store each event
+
+         (doseq [iter (iterator-seq iterator) ]
+           (writer/put (constructor iter)))
+         (clojure.tools.logging/warn "Finished store of partition" idx)
+         ;; return an iterator
+         (.iterator (seq [idx]))))
+      ;; force realization of storage
+      (f/collect))
+  ;; close the journals
+  (writer/close-all))
