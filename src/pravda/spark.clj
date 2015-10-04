@@ -5,33 +5,41 @@
             [flambo.function :as func])
   (:import [org.apache.spark Partition SparkContext TaskContext]))
 
-(defrecord FilePartition
-    [index file]
+(defrecord FilePartition [index file]
   ;; implement the spark Partition interface
   Partition
   (index [this] index))
 
 (defn make-rdd
-  [^org.apache.spark.api.java.JavaSparkContext sc s3 files]
+  [^org.apache.spark.api.java.JavaSparkContext sc s3-bucket files]
   (let [sc (.sc sc)
         scala-nil scala.collection.immutable.Nil$/MODULE$
         classtag (scala.reflect.ClassTag$/MODULE$)
         clojure-classtag (.apply classtag clojure.lang.APersistentMap)
         ;; create a Spark RDD to source our events
-        rdd (proxy [org.apache.spark.rdd.RDD] [sc scala-nil clojure-classtag]
+        rdd (proxy [org.apache.spark.rdd.RDD]
+                [sc scala-nil clojure-classtag]
 
+              ;; This method describes all the partitions available
+              ;; in this RDD as an array of FilePartition.
+              (getPartitions []
+                (->> files
+                     (map-indexed (fn [index file]
+                                    (->FilePartition index file)))
+                     (into-array)))
+
+              ;; This method returns the actual content for a partition
               (compute [^Partition split-in ^TaskContext _]
                 (let [^FilePartition split-in split-in
                       file (.file split-in)
-                      ^java.util.Collection part (reader/build-partition s3 file)
-                      java-conversions (scala.collection.JavaConversions$/MODULE$)]
-                  (.asScalaIterator java-conversions (.iterator part))))
+                      j-conv (scala.collection.JavaConversions$/MODULE$)
+                      ;; build the lazy-seq of events
+                      ^java.util.Collection part
+                        (reader/build-partition s3-bucket file)]
+                  ;; return the equivalent scala iterator on the partition
+                  (.asScalaIterator j-conv (.iterator part)))))]
 
-              (getPartitions []
-                (->> files
-                     (map-indexed (fn [index file] (->FilePartition index file)))
-                     (into-array))))]
-    ;; convert to a JavaRDD
+    ;; Finally convert the spark RDD to a JavaRDD for Flambo
     (org.apache.spark.api.java.JavaRDD. rdd clojure-classtag)))
 
 (defn store-rdd
@@ -48,7 +56,7 @@
          (doseq [iter (iterator-seq iterator) ]
            (writer/put (constructor iter)))
          (clojure.tools.logging/warn "Finished store of partition" idx)
-         ;; return an iterator
+         ;; return an descriptive iterator with the partition just stored
          (.iterator (seq [idx]))))
       ;; force realization of storage
       (f/collect))

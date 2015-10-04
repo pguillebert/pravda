@@ -1,11 +1,11 @@
 (ns pravda.spark-test
-  (:require [pravda.spark :as spark]
+  (:require [clojure.test :refer :all]
+            [pravda.spark :as spark]
             [pravda.datalog :as dlog]
             [flambo.conf :as conf]
             [flambo.api :as f]))
 
 (def conf (load-file "./conf/conf.clj"))
-(def s3 (:s3 conf))
 
 (def c (-> (conf/spark-conf)
            (conf/master "local")
@@ -13,15 +13,15 @@
 
 (def sc (f/spark-context c))
 
-
 ;; Each file will be one spark partition.
-(def data (spark/make-rdd sc s3 ["uberstein/pshb-info/2015-01-01/uniqueid-000000.journal.gz"
-                                 "uberstein/pshb-info/2015-01-02/uniqueid-000000.journal.gz"
-                                 "uberstein/pshb-info/2015-01-03/uniqueid-000000.journal.gz"
-                                 "uberstein/pshb-info/2015-01-04/uniqueid-000000.journal.gz"
-                                 "uberstein/pshb-info/2015-01-05/uniqueid-000000.journal.gz"
-                                 "uberstein/pshb-info/2015-01-06/uniqueid-000000.journal.gz"
-                                ]))
+(def data (spark/make-rdd sc (:s3-bucket conf)
+                          ["uberstein/pshb-info/2015-01-01/uniqueid-000000.journal.gz"
+                           "uberstein/pshb-info/2015-01-02/uniqueid-000000.journal.gz"
+                           "uberstein/pshb-info/2015-01-03/uniqueid-000000.journal.gz"
+                           "uberstein/pshb-info/2015-01-04/uniqueid-000000.journal.gz"
+                           "uberstein/pshb-info/2015-01-05/uniqueid-000000.journal.gz"
+                           "uberstein/pshb-info/2015-01-06/uniqueid-000000.journal.gz"
+                           ]))
 
 ;; Example Flambo query
 (def min-threshold 3)
@@ -56,5 +56,8 @@
                        :type "pshb-feeds"
                        :ts (System/currentTimeMillis))))
 
-       ;; Store as using a datalog structure
+       ;; Store using a datalog structure
        (spark/store-rdd conf "testoo" dlog/map->Datalog)))
+
+(deftest spark-test
+  (detect-pshb-feeds data))

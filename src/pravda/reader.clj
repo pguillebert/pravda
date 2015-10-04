@@ -1,29 +1,36 @@
 (ns pravda.reader
-  (:require [aws.sdk.s3 :as s3]
-            [taoensso.nippy :as nippy])
+  (:require [taoensso.nippy :as nippy])
   (:import [java.io DataInputStream InputStream]
            [org.apache.commons.compress.compressors.gzip
-            GzipCompressorInputStream]))
+            GzipCompressorInputStream]
+           [com.amazonaws.auth DefaultAWSCredentialsProviderChain]
+           [com.amazonaws.services.s3 AmazonS3Client]))
 
-(definterface ReadableEventStream [nextEvent []])
+;; This interface defines a method to read the pravda file
+;; event by event.
+(definterface ReadableEventStream
+  (nextEvent []))
 
-(defn make-pravda-input-stream
-  "Builds an input stream to read event-files"
-  [^InputStream is]
-  (proxy [DataInputStream ReadableEventStream]
-      [is]
-    (nextEvent [] (let [^DataInputStream this this
-                         l (proxy-super readInt)
-                         b (byte-array l)
-                         _ (proxy-super readFully b)]
-                     (nippy/thaw b)))))
+;; This defines the AWS S3 client. Uses the default credentials
+;; provider chain.
+(def ^AmazonS3Client s3-client
+  (AmazonS3Client. (DefaultAWSCredentialsProviderChain.)))
 
 (defn build-partition
-  [s3 file-path]
-  (let [content-is (:content (s3/get-object s3 (:bucket s3) file-path))
+  [^String s3-bucket ^String file-path]
+  (let [obj (.getObject s3-client s3-bucket file-path)
+        content-is (.getObjectContent obj)
         deflated-is (GzipCompressorInputStream. content-is true)
-        pravda-is (make-pravda-input-stream deflated-is)]
-    ;; lazy seq of all events in this file-path
+        ;; Define a proxy extending this input stream, adding the
+        ;; nextEvent method by implementing ReadableEventStream.
+        pravda-is (proxy [DataInputStream ReadableEventStream]
+                      [deflated-is]
+                    (nextEvent [] (let [^DataInputStream this this
+                                        l (proxy-super readInt)
+                                        b (byte-array l)
+                                        _ (proxy-super readFully b)]
+                                    (nippy/thaw b))))]
+    ;; return a lazy-seq of all events in this file-path
     (take-while #(not= ::EOF %)
                 (repeatedly (fn [] (try (.nextEvent pravda-is)
                                        (catch java.io.EOFException e

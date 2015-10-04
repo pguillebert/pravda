@@ -42,15 +42,15 @@ As a reference, you'll find an example implementation in the namespace
 
 Don't forget to initialize the library with a configuration like this :
 
-      {:s3 {:access-key "xxxxxxxxxxxxxxxxx"
-            :secret-key "xxxxxxxxxxxxxxxxxxxxxxxx"
-            :bucket "xxxxxxxx"}
+      {:s3-bucket "xxxxxxxx"
        :local-basedir "/tmp/pravda"
        :id "unique-id"
        :compressor :gzip
        :max-batch-latency (* 30 1000) ;; 30 secs
        :max-batch-size 100 ;; 100 logs
        :expiration (* 30 60 1000) ;; 30 minutes
+       :flush-delay (* 3 60 1000) ;; 3 minutes
+       :tidy-interval (* 60 1000) ;; 1 minute
        }
 
 Then you can call `put` with a `StorableEvent` as many times as you wish.

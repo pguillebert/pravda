@@ -1,6 +1,5 @@
 (ns pravda.writer
   (:require [s3-journal :as s3j]
-            [aws.sdk.s3 :as s3]
             [taoensso.nippy :as nippy]
             [clojure.tools.logging :as log])
   (:import [java.nio ByteBuffer]
@@ -27,9 +26,7 @@
   [conf spath]
   "Creates a new journal for the storage path spath."
   (s3j/journal
-   {:s3-access-key (get-in conf [:s3 :access-key])
-    :s3-secret-key (get-in conf [:s3 :secret-key])
-    :s3-bucket (get-in conf [:s3 :bucket])
+   {:s3-bucket (:s3-bucket conf)
     ;; do not use dynamic path from s3-journal, hardcode our own
     :s3-directory-format (str "'" spath "'")
     :local-directory (str (:local-basedir conf) "/" spath)
@@ -47,6 +44,8 @@
 
 (defn get-journal
   [spath]
+  "Retrieves the journal for storage path spath. Creates it
+   if it does not exist ; stores it in an atom for later use."
   (locking _journals_
     (if-let [existing (get @_journals_ spath)]
       existing
@@ -59,6 +58,7 @@
 
 (defn close-journal
   [spath]
+  "Closes the journal for storage path spath."
   (locking _journals_
     (if-let [existing (get @_journals_ spath)]
       (do (.close existing)
@@ -79,15 +79,16 @@
    (Runtime/getRuntime)
    (proxy [Thread] []
      (run []
-       (log/info "Closing pravda")
+       (log/info "Closing all pravda journals on shutdown")
        (try
          (close-all)
          (catch Exception e
-           (log/error e "failed to close pravda")))))))
+           (log/error e "failed to close pravda journals")))))))
 
 (defn now [] (System/currentTimeMillis))
 
-(def ^ScheduledExecutorService _scheduler_ (Executors/newScheduledThreadPool 1))
+(def ^ScheduledExecutorService _scheduler_
+  (Executors/newScheduledThreadPool 1))
 
 (defn flush-journals
   [current-timers flush-delay]
@@ -109,7 +110,7 @@
 
 (defn start-journal-tidy!
   [{:keys [flush-delay tidy-interval] :as conf}]
-  "Setups a thread to flush (close) journals not written for flush-delay.
+  "Setups a periodic task to close journals not written for flush-delay.
    This task runs every tidy-interval."
   (.scheduleAtFixedRate _scheduler_ #(swap! _timers_ flush-journals flush-delay)
                         tidy-interval
