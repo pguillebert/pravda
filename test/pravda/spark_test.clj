@@ -1,5 +1,7 @@
 (ns pravda.spark-test
   (:require [clojure.test :refer :all]
+            [clj-time.core :as time]
+            [pravda.utils :as utils]
             [pravda.spark :as spark]
             [pravda.datalog :as dlog]
             [flambo.conf :as conf]
@@ -12,16 +14,14 @@
            (conf/app-name "flame_princess")))
 
 (def sc (f/spark-context c))
+(def s3-bucket (:s3-bucket conf))
 
 ;; Each file will be one spark partition.
-(def data (spark/make-rdd sc (:s3-bucket conf)
-                          ["uberstein/pshb-info/2015-01-01/uniqueid-000000.journal.gz"
-                           "uberstein/pshb-info/2015-01-02/uniqueid-000000.journal.gz"
-                           "uberstein/pshb-info/2015-01-03/uniqueid-000000.journal.gz"
-                           "uberstein/pshb-info/2015-01-04/uniqueid-000000.journal.gz"
-                           "uberstein/pshb-info/2015-01-05/uniqueid-000000.journal.gz"
-                           "uberstein/pshb-info/2015-01-06/uniqueid-000000.journal.gz"
-                           ]))
+(def data (spark/make-rdd sc s3-bucket
+                          (utils/dataset-files
+                           s3-bucket "uberstein" "pshb-info"
+                           (time/date-time 2015 01 01)
+                           (time/date-time 2015 01 06))))
 
 ;; Example Flambo query
 (def min-threshold 3)

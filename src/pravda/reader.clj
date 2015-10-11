@@ -18,6 +18,8 @@
 
 (defn build-partition
   [^String s3-bucket ^String file-path]
+  "Returns a lazy-seq of Events for one pravda file located
+   by bucket name and file-path."
   (let [obj (.getObject s3-client s3-bucket file-path)
         content-is (.getObjectContent obj)
         deflated-is (GzipCompressorInputStream. content-is true)
@@ -30,7 +32,7 @@
                                         b (byte-array l)
                                         _ (proxy-super readFully b)]
                                     (nippy/thaw b))))]
-    ;; return a lazy-seq of all events in this file-path
+    ;; return a lazy-seq of all events in this file-path until the EOF.
     (take-while #(not= ::EOF %)
                 (repeatedly (fn [] (try (.nextEvent pravda-is)
                                        (catch java.io.EOFException e
