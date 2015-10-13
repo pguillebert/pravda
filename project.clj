@@ -1,4 +1,4 @@
-(defproject pravda "0.1.0-SNAPSHOT"
+(defproject pravda "0.1.1"
   :description "Stores streams of events in s3"
   :url "http://github.com/pguillebert/pravda"
   :license {:name "Eclipse Public License"

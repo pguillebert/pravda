@@ -134,4 +134,4 @@
   (when-let [storage-path (get-storage-path obj)]
     (when-let [journal (get-journal storage-path)]
       (swap! _timers_ assoc storage-path (now))
-      (s3-journal/put! journal (into {} obj)))))
+      (s3-journal/put! journal obj))))

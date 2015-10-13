@@ -30,6 +30,7 @@
 (defn detect-pshb-feeds
   [data]
   (-> data
+      (f/map (f/fn [storable] (into {} storable)))
       (f/group-by (f/fn [{:keys [url hub topic]}]
                     [url hub topic]))
 
