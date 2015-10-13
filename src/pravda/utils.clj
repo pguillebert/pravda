@@ -1,7 +1,9 @@
 (ns pravda.utils
-  (:import [com.amazonaws.services.s3.model S3ObjectSummary]
+  (:import [com.amazonaws.services.s3.model
+            ObjectListing S3ObjectSummary ListObjectsRequest]
            [com.amazonaws.services.s3 AmazonS3Client])
-  (:require [clj-time.core :as time]
+  (:require [pravda.reader :as reader]
+            [clj-time.core :as time]
             [clj-time.format :as format]))
 
 (defn date-selector
@@ -51,3 +53,29 @@
   (->> (apply date-selector args)
        (map #(str domain "/" type "/" %))
        (mapcat #(list-files s3-bucket %))))
+
+(defn select-latest
+  [s3-bucket domain type]
+  "Will pick latest date available in the directory domain/type, according
+   to the Datalog specification. Returns all pravda file paths for this
+   latest date. Dated directory should be lexicographically ordered."
+  (let [prefix (str domain "/" type "/")
+        req (-> (ListObjectsRequest.)
+                (.withBucketName "linkfluence.datalog")
+                (.withPrefix prefix)
+                (.withDelimiter "/")
+                (.withMaxKeys (int -1)))
+
+        latest (->> (.listObjects s3-client req)
+                    (.getCommonPrefixes)
+                    (map #(clojure.string/split % #"/"))
+                    (map last)
+                    (sort)
+                    (last))]
+    (list-files s3-bucket (str domain "/" type "/" latest))))
+
+(defn stream-latest
+  [s3-bucket domain type]
+  "Returns a lazy-seq of all the latest data for a given domain and type."
+  (mapcat #(reader/build-partition s3-bucket %)
+          (select-latest s3-bucket domain type)))
