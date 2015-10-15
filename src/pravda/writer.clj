@@ -62,6 +62,7 @@
   (locking _journals_
     (if-let [existing (get @_journals_ spath)]
       (do (.close existing)
+          (swap! _timers_ dissoc spath)
           (swap! _journals_ dissoc spath))
       (log/error "Cannot close non-existing journal" spath))))
 
