@@ -13,12 +13,14 @@
 (defn make-rdd
   [^org.apache.spark.api.java.JavaSparkContext sc s3-bucket files]
   (let [sc (.sc sc)
+        ;; the scala "nil" class
         scala-nil scala.collection.immutable.Nil$/MODULE$
-        classtag (scala.reflect.ClassTag$/MODULE$)
-        clojure-classtag (.apply classtag clojure.lang.APersistentMap)
+        ;; The scala classtag for our StorableEvent type
+        storable-classtag (.apply (scala.reflect.ClassTag$/MODULE$)
+                                  pravda.writer.StorableEvent)
         ;; create a Spark RDD to source our events
         rdd (proxy [org.apache.spark.rdd.RDD]
-                [sc scala-nil clojure-classtag]
+                [sc scala-nil storable-classtag]
 
               ;; This method describes all the partitions available
               ;; in this RDD as an array of FilePartition.
@@ -40,10 +42,10 @@
                   (.asScalaIterator j-conv (.iterator part)))))]
 
     ;; Finally convert the spark RDD to a JavaRDD for Flambo
-    (org.apache.spark.api.java.JavaRDD. rdd clojure-classtag)))
+    (org.apache.spark.api.java.JavaRDD. rdd storable-classtag)))
 
 (defn store-rdd
-  [^org.apache.spark.api.java.JavaRDD rdd conf identifier constructor]
+  [^org.apache.spark.api.java.JavaRDD rdd conf identifier]
   (-> rdd
       (f/map-partitions-with-index
        (f/fn [idx iterator]
@@ -53,8 +55,8 @@
          (clojure.tools.logging/warn "Starting store of partition" idx)
          ;; iterate all the rdd and store each event
 
-         (doseq [iter (iterator-seq iterator) ]
-           (writer/put (constructor iter)))
+         (doseq [item (iterator-seq iterator)]
+           (writer/put item))
          (clojure.tools.logging/warn "Finished store of partition" idx)
          ;; return an descriptive iterator with the partition just stored
          (.iterator (seq [idx]))))

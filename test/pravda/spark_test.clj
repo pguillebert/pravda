@@ -30,7 +30,6 @@
 (defn detect-pshb-feeds
   [data]
   (-> data
-      (f/map (f/fn [storable] (into {} storable)))
       (f/group-by (f/fn [{:keys [url hub topic]}]
                     [url hub topic]))
 
@@ -53,12 +52,14 @@
                         (> delta min-period))))
 
        (f/map (f/fn [e]
-                (assoc e :domain "processed"
-                       :type "pshb-feeds"
-                       :ts (System/currentTimeMillis))))
+                (-> e
+                    (assoc :domain "processed"
+                           :type "pshb-feeds"
+                           :ts (System/currentTimeMillis))
+                    (dlog/map->Datalog))))
 
        ;; Store using a datalog structure
-       (spark/store-rdd conf "testoo" dlog/map->Datalog)))
+       (spark/store-rdd conf "testoo")))
 
 (deftest spark-test
   (detect-pshb-feeds data))
