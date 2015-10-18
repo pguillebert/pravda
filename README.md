@@ -71,10 +71,10 @@ The file is just a concatenation of entries :
 
 ![Data format](/doc/format.png)
 
-The byte array is the nippy representation of the clojure map equivalent
-of the provided `StorableEvent`. The size of this serialization is stored
-just before it as an integer (4 bytes). This is classic Type-Length-Value
-storage (except there is no type).
+The byte array is the nippy serialization of your record implementing
+`StorableEvent`. The size of this serialization is stored just before it as
+an integer (4 bytes). This is classic Type-Length-Value storage (except there
+is no type).
 
 This format is compressed as a stream, current implementation focuses on
 GZIP but others are possible.
@@ -87,13 +87,13 @@ RDD partitions : for example if you open 7 days of data with the RDD, it'll
 provide a RDD with 7 partitions. In each partition, the reader generates a
 lazy-seq that is converted into a Scala iterable for Spark.
 
-I chose Flambo to process the events with a Clojure-friendly DSLs.
+The RDD spits out `StorableEvent` records that you can manipulate with Flambo
+to process the events with a Clojure-friendly DSLs in Spark.
+
+Pravda also provides a writer function to store processed data into the
+same format in S3, from your Spark application.
 
 You'll find an example query in the test directory.
-
-## TODO
-
-* how to write output data back into Spark
 
 ## Acknoledgements
 
