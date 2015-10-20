@@ -1,5 +1,6 @@
 (ns pravda.spark
-  (:require [pravda.reader :as reader]
+  (:require [clojure.tools.logging :as log]
+            [pravda.reader :as reader]
             [pravda.writer :as writer]
             [flambo.api :as f]
             [flambo.function :as func])
@@ -49,15 +50,13 @@
   (-> rdd
       (f/map-partitions-with-index
        (f/fn [idx iterator]
-         ;; initialize a pravda writer
-         (writer/initialize (assoc conf :id (str identifier idx)) )
-
-         (clojure.tools.logging/warn "Starting store of partition" idx)
+         (log/info "Starting store of partition" idx)
+         ;; initialize a pravda writer with a custom id by partition
+         (writer/initialize (assoc conf :id (str identifier idx)))
          ;; iterate all the rdd and store each event
-
-         (doseq [item (iterator-seq iterator)]
+         (doseq [^StorableEvent item (iterator-seq iterator)]
            (writer/put item))
-         (clojure.tools.logging/warn "Finished store of partition" idx)
+         (log/info "Finished store of partition" idx)
          ;; return an descriptive iterator with the partition just stored
          (.iterator (seq [idx]))))
       ;; force realization of storage
